@@ -22,11 +22,11 @@ export default function DocumentAnalyzer() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // File selection / reading
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      // Read text file content
       if (selectedFile.type === 'text/plain') {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -39,6 +39,7 @@ export default function DocumentAnalyzer() {
     }
   };
 
+  // Drag & drop file
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files?.[0];
@@ -47,10 +48,10 @@ export default function DocumentAnalyzer() {
     }
   };
 
+  // Analyze document via n8n
   const handleAnalyze = async () => {
     if (!file && !text.trim()) return;
     setIsAnalyzing(true);
-
     try {
       const content = text || `Content from file: ${file?.name}`;
       const analysisResult = await analyzeDocument(content);
@@ -63,7 +64,9 @@ export default function DocumentAnalyzer() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
 
+  // Clear file / text / results
   const clearFile = () => {
     setFile(null);
     setText('');
@@ -126,7 +129,7 @@ export default function DocumentAnalyzer() {
             </div>
           ) : null}
 
-          {/* Or paste text */}
+          {/* Paste text directly */}
           <div className="mt-6">
             <div className="flex items-center gap-4 mb-4">
               <div className="flex-1 h-px bg-border" />
