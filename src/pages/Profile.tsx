@@ -61,20 +61,14 @@ export default function Profile() {
         <div className="glass-card-elevated p-8 mb-8">
           <div className="flex flex-col md:flex-row gap-8 items-start">
             {/* Profile Image */}
-            <<div className="relative shrink-0">
-                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-gradient-to-br from-primary to-primary-glow p-1">
-                <div className="w-full h-full rounded-xl bg-card flex items-center justify-center overflow-hidden">
-           <img
-        src="mypic.jpeg"
-        alt="Profile"
-        className="w-full h-full object-cover rounded-xl"
-            />
-          </div>
-          </div>
-              <div className="absolute -bottom-2 -right-2 px-3 py-1 rounded-full bg-success text-success-foreground text-xs font-medium">
-        Available
-        </div>
-    </div>
+         <div className="w-full h-full rounded-xl bg-card flex items-center justify-center overflow-hidden">
+  <img
+    src="/assets/mypic.jpeg"
+    alt="Profile"
+    className="w-full h-full object-cover rounded-xl"
+  />
+</div>
+
 
 
             {/* Profile Info */}
