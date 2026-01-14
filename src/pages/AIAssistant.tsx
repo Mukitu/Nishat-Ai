@@ -28,7 +28,7 @@ const SUGGESTED_PROMPTS = [
   'Help me optimize my React application performance',
 ];
 
-/* ---------------- Gemini API Call ---------------- */
+// 🔹 Gemini API call function
 async function fetchGeminiResponse(message: string, apiKey: string) {
   if (!apiKey) throw new Error('API key missing');
 
@@ -38,22 +38,13 @@ async function fetchGeminiResponse(message: string, apiKey: string) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: message }],
-          },
-        ],
+        contents: [{ parts: [{ text: message }] }],
       }),
     }
   );
 
-  if (!res.ok) throw new Error('Gemini API error');
-
   const data = await res.json();
-  return (
-    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-    'No response from Gemini'
-  );
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 export default function AIAssistant() {
@@ -71,9 +62,8 @@ export default function AIAssistant() {
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
-
     if (!apiKey) {
-      toast.error('Please enter your Gemini API key');
+      toast.error('AIzaSyC0eGTogt9VCZakEUj6h89zEFR_VF748Sc');
       return;
     }
 
@@ -89,6 +79,7 @@ export default function AIAssistant() {
     setIsLoading(true);
 
     try {
+      // 🔹 Direct Gemini API call
       const reply = await fetchGeminiResponse(userMsg.content, apiKey);
 
       const aiMsg: Message = {
@@ -101,6 +92,7 @@ export default function AIAssistant() {
       setMessages((p) => [...p, aiMsg]);
     } catch (err) {
       toast.error('Failed to get Gemini response');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -142,13 +134,13 @@ export default function AIAssistant() {
           badge="AI"
         />
 
-        {/* 🔐 API KEY INPUT */}
+        {/* 🔑 API KEY INPUT */}
         <div className="mb-4">
           <input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="AIzaSyCS81-oa4ys9-xEu6UpoYRTdTQXTqOt0_s"
+            placeholder="Enter API Key"
             className="input-field w-full"
           />
           <p className="text-xs text-muted-foreground mt-1">
