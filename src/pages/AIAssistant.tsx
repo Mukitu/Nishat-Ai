@@ -14,7 +14,6 @@ import {
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { cn } from '@/lib/utils';
-import { sendAIMessage, AIMessage } from '@/services/n8nService';
 import { toast } from 'sonner';
 
 interface Message {
@@ -22,17 +21,40 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  model?: 'gemini';
   alternativeResponse?: string;
-  alternativeModel?: 'gemini';
 }
 
-const suggestedPrompts = [
+const SUGGESTED_PROMPTS = [
   'Explain the concept of microservices architecture',
   'Create a project plan for a mobile app',
   'What are the best practices for API design?',
   'Help me optimize my React application performance',
 ];
+
+// **Directly put your OpenRouter / OpenAI API key here**
+const API_KEY = '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';
+
+// Function to call AI API
+async function fetchAIResponse(messages: { role: string; content: string }[]) {
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4', // চাইলে পরে change করতে পারো
+        messages,
+      }),
+    });
+    const data = await res.json();
+    return data.choices[0].message.content || 'No response';
+  } catch (err) {
+    console.error(err);
+    throw new Error('Failed to get AI response');
+  }
+}
 
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -43,9 +65,7 @@ export default function AIAssistant() {
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 
   useEffect(() => {
     scrollToBottom();
@@ -66,26 +86,22 @@ export default function AIAssistant() {
     setIsLoading(true);
 
     try {
-      const apiMessages: AIMessage[] = [
-        ...messages.map(m => ({ role: m.role, content: m.content })),
-        { role: 'user' as const, content: userMessage.content },
+      const apiMessages = [
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+        { role: 'user', content: userMessage.content },
       ];
 
-      const response = await sendAIMessage(apiMessages);
+      const content = await fetchAIResponse(apiMessages);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response.content,
-        timestamp: new Date(),
-        model: response.model,
+        content,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      toast.error('Failed to get AI response', {
-        description: 'Please check your API configuration',
-      });
+    } catch (err) {
+      toast.error('Failed to get AI response');
     } finally {
       setIsLoading(false);
     }
@@ -98,30 +114,21 @@ export default function AIAssistant() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const toggleAlternative = (messageId: string) => {
-    setShowAlternative((prev) => ({
-      ...prev,
-      [messageId]: !prev[messageId],
-    }));
+  const toggleAlternative = (id: string) => {
+    setShowAlternative((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const handleVoiceInput = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast.error('Voice input not supported', {
-        description: 'Your browser does not support speech recognition',
-      });
+      toast.error('Voice input not supported');
       return;
     }
 
-    if (isListening) {
-      setIsListening(false);
-      return;
-    }
+    if (isListening) return setIsListening(false);
 
     setIsListening(true);
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
@@ -133,14 +140,8 @@ export default function AIAssistant() {
       toast.success('Voice captured', { description: transcript.slice(0, 50) + '...' });
     };
 
-    recognition.onerror = () => {
-      setIsListening(false);
-      toast.error('Voice recognition failed');
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
 
     recognition.start();
   };
@@ -148,14 +149,9 @@ export default function AIAssistant() {
   return (
     <DashboardLayout>
       <div className="animate-fade-in h-[calc(100vh-8rem)] flex flex-col">
-        <PageHeader
-          title="AI Personal Assistant"
-          description="Powered by Hugging Face LLaMA 3.3"
-          badge="AI"
-        />
+        <PageHeader title="AI Personal Assistant" description="Powered by OpenRouter / GPT-4" badge="AI" />
 
         <div className="flex-1 flex flex-col glass-card overflow-hidden">
-          {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
@@ -164,10 +160,10 @@ export default function AIAssistant() {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">How can I help you today?</h3>
                 <p className="text-muted-foreground mb-8 max-w-md">
-                  Ask me anything about development, planning, analysis, or any topic you need help with.
+                  Ask me anything about development, planning, or analysis.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
-                  {suggestedPrompts.map((prompt) => (
+                  {SUGGESTED_PROMPTS.map((prompt) => (
                     <button
                       key={prompt}
                       onClick={() => setInput(prompt)}
@@ -180,55 +176,26 @@ export default function AIAssistant() {
               </div>
             ) : (
               messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    'flex gap-4 animate-slide-up',
-                    message.role === 'user' ? 'flex-row-reverse' : ''
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
-                      message.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted'
-                    )}
-                  >
-                    {message.role === 'user' ? (
-                      <User className="w-5 h-5" />
-                    ) : (
-                      <Bot className="w-5 h-5" />
-                    )}
+                <div key={message.id} className={cn('flex gap-4 animate-slide-up', message.role === 'user' ? 'flex-row-reverse' : '')}>
+                  <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                    {message.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
                   </div>
-                  <div
-                    className={cn(
-                      'flex-1 max-w-2xl',
-                      message.role === 'user' ? 'text-right' : ''
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'inline-block p-4 rounded-xl',
-                        message.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
-                      )}
-                    >
-                      <p className="whitespace-pre-wrap text-left">{message.content}</p>
+                  <div className={cn('flex-1 max-w-2xl', message.role === 'user' ? 'text-right' : '')}>
+                    <div className={cn('inline-block p-4 rounded-xl', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                      <p className="whitespace-pre-wrap text-left">
+                        {showAlternative[message.id] && message.alternativeResponse ? message.alternativeResponse : message.content}
+                      </p>
                     </div>
                     {message.role === 'assistant' && (
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs text-muted-foreground">Hugging Face</span>
-                        <button
-                          onClick={() => handleCopy(message.content, message.id)}
-                          className="p-1 hover:bg-muted rounded"
-                        >
-                          {copiedId === message.id ? (
-                            <Check className="w-4 h-4 text-success" />
-                          ) : (
-                            <Copy className="w-4 h-4 text-muted-foreground" />
-                          )}
+                        {message.alternativeResponse && (
+                          <button onClick={() => toggleAlternative(message.id)} className="flex items-center gap-1 text-xs text-primary hover:underline">
+                            {showAlternative[message.id] ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                            {showAlternative[message.id] ? 'Show primary' : 'View alternative'}
+                          </button>
+                        )}
+                        <button onClick={() => handleCopy(message.content, message.id)} className="p-1 hover:bg-muted rounded">
+                          {copiedId === message.id ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
                         </button>
                       </div>
                     )}
@@ -245,14 +212,8 @@ export default function AIAssistant() {
                   <div className="inline-block p-4 rounded-xl bg-muted">
                     <div className="flex gap-1">
                       <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-                      <span
-                        className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                        style={{ animationDelay: '0.2s' }}
-                      />
-                      <span
-                        className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                        style={{ animationDelay: '0.4s' }}
-                      />
+                      <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                      <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
                     </div>
                   </div>
                 </div>
@@ -264,13 +225,7 @@ export default function AIAssistant() {
           {/* Input Area */}
           <div className="border-t border-border p-4">
             <div className="flex items-end gap-3">
-              <button
-                onClick={handleVoiceInput}
-                className={cn(
-                  'btn-secondary p-3',
-                  isListening && 'bg-primary text-primary-foreground'
-                )}
-              >
+              <button onClick={handleVoiceInput} className={cn('btn-secondary p-3', isListening && 'bg-primary text-primary-foreground')}>
                 {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </button>
               <div className="flex-1 relative">
@@ -288,17 +243,11 @@ export default function AIAssistant() {
                   rows={1}
                 />
               </div>
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-                className="btn-primary p-3 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={handleSend} disabled={!input.trim() || isLoading} className="btn-primary p-3 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Send className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-muted-foreground text-center mt-3">
-              AI responses are generated via Hugging Face LLaMA 3.3 API. Your data stays local.
-            </p>
+            <p className="text-xs text-muted-foreground text-center mt-3">AI responses are generated via OpenRouter API key directly in this page.</p>
           </div>
         </div>
       </div>
