@@ -28,27 +28,38 @@ const SUGGESTED_PROMPTS = [
   'Help me optimize my React application performance',
 ];
 
-// 🔗 n8n Webhook URL
-const N8N_WEBHOOK_URL =
-  'http://localhost:5678/webhook/122eb549-8506-4c2f-ac63-94aa081c0956/chat';
+/* ---------------- Gemini API Call ---------------- */
+async function fetchGeminiResponse(message: string, apiKey: string) {
+  if (!apiKey) throw new Error('API key missing');
 
-// 🔁 Call n8n instead of OpenAI
-async function fetchAIResponse(message: string) {
-  const res = await fetch(N8N_WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-  });
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: message }],
+          },
+        ],
+      }),
+    }
+  );
 
-  if (!res.ok) throw new Error('n8n error');
+  if (!res.ok) throw new Error('Gemini API error');
 
   const data = await res.json();
-  return data.reply || data.response || 'No response from AI';
+  return (
+    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+    'No response from Gemini'
+  );
 }
 
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -60,6 +71,11 @@ export default function AIAssistant() {
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
+
+    if (!apiKey) {
+      toast.error('Please enter your Gemini API key');
+      return;
+    }
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -73,18 +89,18 @@ export default function AIAssistant() {
     setIsLoading(true);
 
     try {
-      const aiReply = await fetchAIResponse(userMsg.content);
+      const reply = await fetchGeminiResponse(userMsg.content, apiKey);
 
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: aiReply,
+        content: reply,
         timestamp: new Date(),
       };
 
       setMessages((p) => [...p, aiMsg]);
-    } catch {
-      toast.error('AI response failed');
+    } catch (err) {
+      toast.error('Failed to get Gemini response');
     } finally {
       setIsLoading(false);
     }
@@ -99,7 +115,7 @@ export default function AIAssistant() {
 
   const handleVoiceInput = () => {
     if (!('webkitSpeechRecognition' in window)) {
-      toast.error('Voice not supported');
+      toast.error('Voice input not supported');
       return;
     }
 
@@ -122,9 +138,23 @@ export default function AIAssistant() {
       <div className="h-[calc(100vh-8rem)] flex flex-col">
         <PageHeader
           title="AI Personal Assistant"
-          description="Powered by n8n Automation"
+          description="Powered by Google Gemini"
           badge="AI"
         />
+
+        {/* 🔐 API KEY INPUT */}
+        <div className="mb-4">
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="AIzaSyCS81-oa4ys9-xEu6UpoYRTdTQXTqOt0_s"
+            className="input-field w-full"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Your API key is used only in this browser session
+          </p>
+        </div>
 
         <div className="flex-1 glass-card flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -161,7 +191,7 @@ export default function AIAssistant() {
                   <div className="max-w-2xl">
                     <div
                       className={cn(
-                        'p-4 rounded-xl',
+                        'p-4 rounded-xl whitespace-pre-wrap',
                         m.role === 'user'
                           ? 'bg-primary text-white'
                           : 'bg-muted'
@@ -174,7 +204,11 @@ export default function AIAssistant() {
                         onClick={() => handleCopy(m.content, m.id)}
                         className="mt-1 text-xs text-muted-foreground flex gap-1 items-center"
                       >
-                        {copiedId === m.id ? <Check size={14} /> : <Copy size={14} />}
+                        {copiedId === m.id ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy size={14} />
+                        )}
                         Copy
                       </button>
                     )}
@@ -182,11 +216,14 @@ export default function AIAssistant() {
                 </div>
               ))
             )}
-            {isLoading && <p className="text-muted-foreground">Thinking...</p>}
+
+            {isLoading && (
+              <p className="text-muted-foreground">Thinking…</p>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
+          {/* Input Area */}
           <div className="border-t p-4 flex gap-3">
             <button onClick={handleVoiceInput}>
               {isListening ? <MicOff /> : <Mic />}
